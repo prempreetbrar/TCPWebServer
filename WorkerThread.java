@@ -14,16 +14,20 @@ public class WorkerThread extends Thread {
     private static final int REQUEST_TIMEOUT_CODE = 408;
     private static final String REQUEST_TIMEOUT_PHRASE = "Request Timeout";
     private static final String HTTP_VERSION = "HTTP/1.1";
+    private static final String EOL = "\r\n";
+    private static final String END_OF_HEADERS = EOL;
 
     // connection variables
     private String serverName;
+    private String root;
     private Socket socket;
     private InputStream inputStream;
     private OutputStream outputStream;
     private int timeout;
 
-    public WorkerThread(String serverName, Socket socket, int timeout) {
+    public WorkerThread(String serverName, String root, Socket socket, int timeout) {
         this.serverName = serverName;
+        this.root = root;
         this.socket = socket;
         this.timeout = timeout;
 
@@ -96,33 +100,33 @@ public class WorkerThread extends Thread {
     }
 
     /**
-     * Create a properly formatted HTTP GET response message.
+     * Create a properly formatted HTTP response message.
      *
      * @return A response message that is ready to send to the client.
      */
-    private String constructGetResponse(int httpStatusCode, String httpStatusPhrase, boolean isOK) {
-        String httpVersion = HTTP_VERSION;
-
-        if (isOK) {
-
-        } else {
-            String dateHeader = "Date: " + ServerUtils.getCurrentDate() + "\r\n";
-            String serverHeader = "Server: " + serverName + "\r\n";
-            String connectionHeader = "Connection: close\r\n";
-        }
-
-        String hostHeader = "Host: " + hostname + "\r\n";
-        String connectionHeader = "Connection: close\r\n";
+    private String constructResponse(int httpStatusCode, String httpStatusPhrase, boolean isOK) {
+        String statusLine = HTTP_VERSION + httpStatusCode + httpStatusPhrase;
+        String headers = constructHeaders(isOK);
 
         /*
-         * A request message has these three "components"; this is why the code is broken up
-         * in a similar manner, but these could just as easily be combined into a single string.
+         * A response message has four "components"; this is why the code is broken up
+         * in a similar manner, but these could just as easily be constructed as a single string.
          */
-        String requestLine = String.format("%s /%s %s\r\n", httpMethod, pathname, httpVersion);
-        String headerLines = hostHeader + connectionHeader;
-        String endOfHeaderLines = "\r\n";
-        String request = requestLine + headerLines + endOfHeaderLines;
-        
-        return request;
+        String response = statusLine + headers + END_OF_HEADERS;
+        return response;
+    }
+
+    private String constructHeaders(boolean isOK) {
+        String date = "Date: " + ServerUtils.getCurrentDate() + EOL;
+        String server = "Server: " + serverName + EOL;
+        String connection = "Connection: close" + EOL;
+
+        if (isOK) {
+            // String lastModified = "Last-Modified: " + ServerUtils.getLastModified() + EOL;
+            // String contentLength = "Content-Length: " + ServerUtils.getContentLength() + EOL;
+            // String contentType = "Content-Type: " + ServerUtils.getContentType() + EOL;
+            // return date + server + lastModified + contentLength + contentType + connection;
+        } 
+        return date + server + connection; 
     }
 }

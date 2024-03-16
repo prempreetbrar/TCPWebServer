@@ -68,7 +68,7 @@ public class WebServer extends Thread {
 
         while (true) {
             Socket newSocketForClient = serverSocket.accept();
-            WorkerThread workerThread = new WorkerThread(SERVER_NAME, newSocketForClient, timeout);
+            WorkerThread workerThread = new WorkerThread(SERVER_NAME, root, newSocketForClient, timeout);
         }
     }
 	
