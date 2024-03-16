@@ -56,19 +56,20 @@ public class WebServer extends Thread {
 	 * 
      */
 	public void run() {
-        while (!shutdown) {
             try {
                 listen();
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        }
     }
 
     private void listen() throws IOException {
         ServerSocket serverSocket = new ServerSocket(port);
 
-        while (true) {
+        while (!shutdown) {
             Socket newSocketForClient = serverSocket.accept();
             WorkerThread workerThread = new WorkerThread(SERVER_NAME, root, newSocketForClient, timeout);
+            workerThread.start();
         }
     }
 	
