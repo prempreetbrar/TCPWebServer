@@ -1,4 +1,3 @@
-import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -9,37 +8,6 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 
 public class WorkerThread extends Thread {
-    // numbers follow standard Java convention
-    private static final int SUCCESSFUL_TERMINATION = 0;
-    private static final int UNSUCCESSFUL_TERMINATION = -1;
-
-    // I/O constants
-    private static final int BUFFER_SIZE = 4096;
-    private static final int EOF = -1;
-    private static final int NO_BYTE = -1;
-    private static final int OFFSET = 0;
-
-    // request constants
-    private static final String DEFAULT_PATH = "/";
-    private static final String DEFAULT_LOCATION = "/index.html";
-
-    // response constants
-    private static final String STRING_TO_BYTE_CHARSET = "US-ASCII";
-
-    private static final int TIMEOUT_CODE = 408;
-    private static final String TIMEOUT_PHRASE = "Request Timeout";
-    private static final int BAD_CODE = 400;
-    private static final String BAD_PHRASE = "Bad Request";
-    private static final int NOT_FOUND_CODE = 404;
-    private static final String NOT_FOUND_PHRASE = "Not Found";
-    private static final int OK_CODE = 200;
-    private static final String OK_PHRASE = "OK";
-
-    private static final String HTTP_VERSION = "HTTP/1.1";
-    private static final String HTTP_METHOD = "GET";
-    private static final String EOL = "\r\n";
-    private static final String END_OF_HEADERS = EOL;
-
     // connection variables
     private String serverName;
     private String root;
@@ -79,20 +47,20 @@ public class WorkerThread extends Thread {
 
             boolean requestFormattedCorrectly = parseRequest();
             if (!requestFormattedCorrectly) {
-                sendResponse(constructResponseInfo(BAD_CODE, BAD_PHRASE, false, null), null);
+                sendResponse(constructResponseInfo(Utils.BAD_CODE, Utils.BAD_PHRASE, false, null), null);
             }
 
             File object = obtainObject();
             if (object == null) {
-                sendResponse(constructResponseInfo(NOT_FOUND_CODE, NOT_FOUND_PHRASE, false, null), null);
+                sendResponse(constructResponseInfo(Utils.NOT_FOUND_CODE, Utils.NOT_FOUND_PHRASE, false, null), null);
             }
 
-            sendResponse(constructResponseInfo(OK_CODE, OK_PHRASE, true, object), object);
+            sendResponse(constructResponseInfo(Utils.OK_CODE, Utils.OK_PHRASE, true, object), object);
         } 
         catch (SocketTimeoutException e) {
             e.printStackTrace();
             try {
-                sendResponse(constructResponseInfo(TIMEOUT_CODE, TIMEOUT_PHRASE, false, null), null);
+                sendResponse(constructResponseInfo(Utils.TIMEOUT_CODE, Utils.TIMEOUT_PHRASE, false, null), null);
             } catch (IOException e1) {
                 e1.printStackTrace();
             }
@@ -111,40 +79,18 @@ public class WorkerThread extends Thread {
          * order.
          */
         finally {
-            closeGracefully(
+            Utils.closeGracefully(
                 // fileOutputStream,
                 outputStream,
                 inputStream,
                 socket
             );
             if (!wasSuccessful) {
-                System.exit(UNSUCCESSFUL_TERMINATION);
+                System.exit(Utils.UNSUCCESSFUL_TERMINATION);
             } 
         }
     }
 
-     /**
-     * Close all opened streams, sockets, and other resources before terminating the program.
-     *
-     * @param resources all resources which need to be closed
-     */
-    private void closeGracefully(Closeable... resources) {
-        /*
-         * We need to surround this with a try-catch block because the closing itself can raise
-         * an IOException. In this case, if closing fails, there is nothing else we can do. We must also
-         * ensure the resource is not null. This is because other parts of the program instantiate certain
-         * resources to null before reassignment.
-         */
-        try {
-            for (Closeable resource : resources) {
-                if (resource != null) {
-                    resource.close();
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 
     private boolean parseRequest() throws IOException {
         /*
@@ -152,8 +98,8 @@ public class WorkerThread extends Thread {
             both prevByte and currByte because we need to keep track of two
             bytes sequentially (to see if we've encountered \r\n).
         */
-        int prevByte = NO_BYTE;
-        int currByte = NO_BYTE;
+        int prevByte = Utils.NO_BYTE;
+        int currByte = Utils.NO_BYTE;
         
         /*  the request line is formatted as: method objectPath Protocol
             when we split on the request line, we use an index of 0, 1, and 2 to access the code and phrase
@@ -175,7 +121,7 @@ public class WorkerThread extends Thread {
         // assume the request was properly formatted unless we find otherwise
         boolean requestFormattedCorrectly = true;
 
-        while ((currByte = inputStream.read()) != EOF) {
+        while ((currByte = inputStream.read()) != Utils.EOF) {
             currLine += (char) currByte;
 
             /* 
@@ -195,8 +141,8 @@ public class WorkerThread extends Thread {
                     String[] requestLine = currLine.split(" ");
 
                     if (requestLine.length != 3 ||
-                        !requestLine[METHOD].trim().equals(HTTP_METHOD) ||
-                        !requestLine[PROTOCOL].trim().equals(HTTP_VERSION) ||
+                        !requestLine[METHOD].trim().equals(Utils.HTTP_METHOD) ||
+                        !requestLine[PROTOCOL].trim().equals(Utils.HTTP_VERSION) ||
                         !requestLine[OBJECT_PATH].trim().startsWith("/")
                     ) {
                         /* 
@@ -209,8 +155,8 @@ public class WorkerThread extends Thread {
                     else {
                         // handle the case where no object-path is provided
                         objectPath = requestLine[OBJECT_PATH].trim();
-                        if (objectPath.equals(DEFAULT_PATH)) {
-                            objectPath = DEFAULT_LOCATION;
+                        if (objectPath.equals(Utils.DEFAULT_PATH)) {
+                            objectPath = Utils.DEFAULT_LOCATION;
                         }
                     }
                     readFirstLine = true;
@@ -233,8 +179,8 @@ public class WorkerThread extends Thread {
                     * printing to console. 
                     */
                 currLine = "";
-                prevByte = NO_BYTE;
-                currByte = NO_BYTE;
+                prevByte = Utils.NO_BYTE;
+                currByte = Utils.NO_BYTE;
             }
 
             prevByte = currByte;
@@ -254,7 +200,7 @@ public class WorkerThread extends Thread {
 
     private void sendResponse(String responseInfo, File responseObject) {
         try {
-            byte[] responseBytes = responseInfo.getBytes(STRING_TO_BYTE_CHARSET);
+            byte[] responseBytes = responseInfo.getBytes(Utils.STRING_TO_BYTE_CHARSET);
             outputStream.write(responseBytes);
 
             /*
@@ -264,11 +210,11 @@ public class WorkerThread extends Thread {
             * as we would get an IndexOutOfBounds exception when we reach the end.
             */
             int numBytes = 0;
-            byte[] buffer = new byte[BUFFER_SIZE];
+            byte[] buffer = new byte[Utils.BUFFER_SIZE];
             FileInputStream fileInputStream = new FileInputStream(responseObject);
 
-            while ((numBytes = fileInputStream.read(buffer)) != EOF) {
-                outputStream.write(buffer, OFFSET, numBytes);
+            while ((numBytes = fileInputStream.read(buffer)) != Utils.EOF) {
+                outputStream.write(buffer, Utils.OFFSET, numBytes);
             }
             // flush to ensure response is actually written to the client.
             outputStream.flush();
@@ -287,26 +233,26 @@ public class WorkerThread extends Thread {
      * @throws IOException 
      */
     private String constructResponseInfo(int httpStatusCode, String httpStatusPhrase, boolean isOK, File file) throws IOException {
-        String statusLine = HTTP_VERSION + " " + httpStatusCode + " " + httpStatusPhrase + EOL;
+        String statusLine = Utils.HTTP_VERSION + " " + httpStatusCode + " " + httpStatusPhrase + Utils.EOL;
         String headers = constructHeaders(isOK, file);
 
         /*
          * A response message has four "components"; this is why the code is broken up
          * in a similar manner, but these could just as easily be constructed as a single string.
          */
-        String response = statusLine + headers + END_OF_HEADERS;
+        String response = statusLine + headers + Utils.END_OF_HEADERS;
         return response;
     }
 
     private String constructHeaders(boolean isOK, File file) throws IOException {
-        String date = "Date: " + ServerUtils.getCurrentDate() + EOL;
-        String server = "Server: " + serverName + EOL;
-        String connection = "Connection: close" + EOL;
+        String date = "Date: " + ServerUtils.getCurrentDate() + Utils.EOL;
+        String server = "Server: " + serverName + Utils.EOL;
+        String connection = "Connection: close" + Utils.EOL;
 
         if (isOK) {
-            String lastModified = "Last-Modified: " + ServerUtils.getLastModified(file) + EOL;
-            String contentLength = "Content-Length: " + ServerUtils.getContentLength(file) + EOL;
-            String contentType = "Content-Type: " + ServerUtils.getContentType(file) + EOL;
+            String lastModified = "Last-Modified: " + ServerUtils.getLastModified(file) + Utils.EOL;
+            String contentLength = "Content-Length: " + ServerUtils.getContentLength(file) + Utils.EOL;
+            String contentType = "Content-Type: " + ServerUtils.getContentType(file) + Utils.EOL;
             return date + server + lastModified + contentLength + contentType + connection;
         } 
         return date + server + connection; 
