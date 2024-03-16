@@ -1,5 +1,6 @@
 import java.io.Closeable;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -12,10 +13,11 @@ public class WorkerThread extends Thread {
     private static final int SUCCESSFUL_TERMINATION = 0;
     private static final int UNSUCCESSFUL_TERMINATION = -1;
 
-    // connection constants
+    // I/O constants
     private static final int BUFFER_SIZE = 4096;
     private static final int EOF = -1;
     private static final int NO_BYTE = -1;
+    private static final int OFFSET = 0;
 
     // request constants
     private static final String DEFAULT_PATH = "/";
@@ -30,6 +32,8 @@ public class WorkerThread extends Thread {
     private static final String BAD_PHRASE = "Bad Request";
     private static final int NOT_FOUND_CODE = 404;
     private static final String NOT_FOUND_PHRASE = "Not Found";
+    private static final int OK_CODE = 200;
+    private static final String OK_PHRASE = "OK";
 
     private static final String HTTP_VERSION = "HTTP/1.1";
     private static final String HTTP_METHOD = "GET";
@@ -75,19 +79,23 @@ public class WorkerThread extends Thread {
 
             boolean requestFormattedCorrectly = parseRequest();
             if (!requestFormattedCorrectly) {
-                sendResponse(constructResponse(BAD_CODE, BAD_PHRASE, false));
+                sendResponse(constructResponseInfo(BAD_CODE, BAD_PHRASE, false, null), null);
             }
 
-            boolean isObjectFound = isObjectFound();
-            if (!isObjectFound) {
-                sendResponse(constructResponse(NOT_FOUND_CODE, NOT_FOUND_PHRASE, false));
+            File object = obtainObject();
+            if (object == null) {
+                sendResponse(constructResponseInfo(NOT_FOUND_CODE, NOT_FOUND_PHRASE, false, null), null);
             }
 
-            
+            sendResponse(constructResponseInfo(OK_CODE, OK_PHRASE, true, object), object);
         } 
         catch (SocketTimeoutException e) {
             e.printStackTrace();
-            sendResponse(constructResponse(TIMEOUT_CODE, TIMEOUT_PHRASE, false));
+            try {
+                sendResponse(constructResponseInfo(TIMEOUT_CODE, TIMEOUT_PHRASE, false, null), null);
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
         }
         catch (SocketException e) {
             wasSuccessful = false;
@@ -236,15 +244,32 @@ public class WorkerThread extends Thread {
         return requestFormattedCorrectly;
     }
 
-    private boolean isObjectFound() {
+    private File obtainObject() {
         File file = new File(root, objectPath);
-        return file.exists() && file.isFile();
+        if (file.exists() && file.isFile()) {
+            return file;
+        }
+        return null;
     }
 
-    private void sendResponse(String response) {
+    private void sendResponse(String responseInfo, File responseObject) {
         try {
-            byte[] responseBytes = response.getBytes(STRING_TO_BYTE_CHARSET);
+            byte[] responseBytes = responseInfo.getBytes(STRING_TO_BYTE_CHARSET);
             outputStream.write(responseBytes);
+
+            /*
+            * The numBytes tells us how many bytes to actually write to the stream; this may
+            * be different from the buffer size (ie. if the number of bytes remaining is <
+            * buffer.length). This is why we cannot specify buffer.length as the number of bytes being written,
+            * as we would get an IndexOutOfBounds exception when we reach the end.
+            */
+            int numBytes = 0;
+            byte[] buffer = new byte[BUFFER_SIZE];
+            FileInputStream fileInputStream = new FileInputStream(responseObject);
+
+            while ((numBytes = fileInputStream.read(buffer)) != EOF) {
+                outputStream.write(buffer, OFFSET, numBytes);
+            }
             // flush to ensure response is actually written to the client.
             outputStream.flush();
         } 
@@ -252,17 +277,18 @@ public class WorkerThread extends Thread {
             e.printStackTrace();
         }
             
-        System.out.println(response);
+        System.out.println(responseInfo);
     }
 
     /**
      * Create a properly formatted HTTP response message.
      *
      * @return A response message that is ready to send to the client.
+     * @throws IOException 
      */
-    private String constructResponse(int httpStatusCode, String httpStatusPhrase, boolean isOK) {
+    private String constructResponseInfo(int httpStatusCode, String httpStatusPhrase, boolean isOK, File file) throws IOException {
         String statusLine = HTTP_VERSION + " " + httpStatusCode + " " + httpStatusPhrase + EOL;
-        String headers = constructHeaders(isOK);
+        String headers = constructHeaders(isOK, file);
 
         /*
          * A response message has four "components"; this is why the code is broken up
@@ -272,16 +298,16 @@ public class WorkerThread extends Thread {
         return response;
     }
 
-    private String constructHeaders(boolean isOK) {
+    private String constructHeaders(boolean isOK, File file) throws IOException {
         String date = "Date: " + ServerUtils.getCurrentDate() + EOL;
         String server = "Server: " + serverName + EOL;
         String connection = "Connection: close" + EOL;
 
         if (isOK) {
-            // String lastModified = "Last-Modified: " + ServerUtils.getLastModified() + EOL;
-            // String contentLength = "Content-Length: " + ServerUtils.getContentLength() + EOL;
-            // String contentType = "Content-Type: " + ServerUtils.getContentType() + EOL;
-            // return date + server + lastModified + contentLength + contentType + connection;
+            String lastModified = "Last-Modified: " + ServerUtils.getLastModified(file) + EOL;
+            String contentLength = "Content-Length: " + ServerUtils.getContentLength(file) + EOL;
+            String contentType = "Content-Type: " + ServerUtils.getContentType(file) + EOL;
+            return date + server + lastModified + contentLength + contentType + connection;
         } 
         return date + server + connection; 
     }
