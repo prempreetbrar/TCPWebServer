@@ -63,14 +63,25 @@ public class WebServer extends Thread {
          * This is because the worker threads themselves will close each individual client socket. 
          */
         ServerSocket serverSocket = null;
-        List<Thread> workerThreads = new ArrayList<>();
+        List<WorkerThread> workerThreads = new ArrayList<>();
+
+        /* 
+         * if we can't even open a server socket or configure its shutdown interval, 
+         * then we need to terminate the program immediately.
+        */ 
+        try {
+            serverSocket = new ServerSocket(port);
+            serverSocket.setSoTimeout(CHECK_SHUTDOWN_INTERVAL);
+        } 
+        catch (IOException e) {
+            e.printStackTrace();
+            cleanup(serverSocket, workerThreads);
+        }
 
         while (!shutdown) {
             try {
-                serverSocket = new ServerSocket(port);
-                serverSocket.setSoTimeout(CHECK_SHUTDOWN_INTERVAL);
-
                 Socket newSocketForClient = serverSocket.accept();
+                System.out.println("New connection from " + newSocketForClient.getLocalSocketAddress() + Utils.EOL);
                 WorkerThread workerThread = new WorkerThread(SERVER_NAME, root, newSocketForClient, timeout);
                 workerThreads.add(workerThread);
                 workerThread.start();
@@ -80,19 +91,27 @@ public class WebServer extends Thread {
              * We simply check the loop condition again.
              */
             catch (SocketTimeoutException e) {
-                e.printStackTrace();
-            } 
-            // breaking allows us to exit the loop and clean up
-            catch (SocketException e) {
-                e.printStackTrace();
-                break;
+
             } 
             catch (IOException e) {
+                /* 
+                 * This is an error in accepting a connection from A client; however, the server
+                 * can still recover from this error (it can just ignore it and continue to try
+                 * accepting connections from future clients). As a result, we don't terminate the program.
+                 */
                 e.printStackTrace();
-                break;
-            }
+            } 
         }
+        cleanup(serverSocket, workerThreads);
+    }
 
+    /**
+     * Close all opened streams, sockets, and other resources before terminating the program.
+     *
+     * @param serverSocket the serverSocket listening for connections
+     * @param workerThreads all workerThreads currently servicing requests
+     */
+    private void cleanup(ServerSocket serverSocket, List<WorkerThread> workerThreads) {
         /*
          * workerThreads.toArray converts all worker threads to an array of workerthread objects.
          * The size of this array is the number of worker threads we currently have running. However,
