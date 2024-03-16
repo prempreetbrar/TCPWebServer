@@ -1,3 +1,16 @@
+/**
+ * WorkerThread Class
+ * 
+ * CPSC 441 - L01 - T01
+ * Assignment 3
+ * 
+ * TA: Amir Shani
+ * Student: Prempreet Brar
+ * UCID: 30112576
+ * 
+ * A single thread that services a GET request.
+ */
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -12,65 +25,77 @@ public class WorkerThread extends Thread {
     private String serverName;
     private String root;
     private Socket socket;
-    private InputStream inputStream;
-    private OutputStream outputStream;
     private int timeout;
     private String objectPath;
+    private InputStream inputStream;
+    private OutputStream outputStream;
+    private FileInputStream fileInputStream;
 
     /**
-     * @param serverName
-     * @param root
-     * @param socket
-     * @param timeout
+     * @param serverName // name of server used in response headers
+     * @param root // root directory of the web server where objects are located
+     * @param socket // socket established with client over which communication takes place
+     * @param timeout // time period after which connection closes if no request received
      */
     public WorkerThread(String serverName, String root, Socket socket, int timeout) {
         this.serverName = serverName;
         this.root = root;
         this.socket = socket;
         this.timeout = timeout;
+        
         this.objectPath = null;
-
-        try {
-            this.inputStream = socket.getInputStream();
-            this.outputStream = socket.getOutputStream();
-        } 
-        catch (IOException e) {
-            e.printStackTrace();
-        }
+        this.inputStream = null;
+        this.outputStream = null;
     }
 
+    /**
+     * method that parses the client request and responds appropriately.
+     */
     public void run() {
-        boolean wasSuccessful = true;
-
         try {
+            // included here so we don't need an exception block; could just as easily
+            // have been initialized in the constructor
+            this.inputStream = socket.getInputStream();
+            this.outputStream = socket.getOutputStream();
             socket.setSoTimeout(timeout);
 
+            // bad request?
             boolean requestFormattedCorrectly = parseRequest();
             if (!requestFormattedCorrectly) {
-                sendResponse(constructResponseInfo(Utils.BAD_CODE, Utils.BAD_PHRASE, false, null), null);
+                sendResponse(constructResponseInfo(Utils.BAD_CODE, Utils.BAD_PHRASE, 
+                                              false, null), null);
             }
 
+            // object exists?
             File object = obtainObject();
             if (object == null) {
-                sendResponse(constructResponseInfo(Utils.NOT_FOUND_CODE, Utils.NOT_FOUND_PHRASE, false, null), null);
+                sendResponse(constructResponseInfo(Utils.NOT_FOUND_CODE, Utils.NOT_FOUND_PHRASE, 
+                                              false, null), null);
             }
-
+            
+            // send the object back
             sendResponse(constructResponseInfo(Utils.OK_CODE, Utils.OK_PHRASE, true, object), object);
         } 
         catch (SocketTimeoutException e) {
             e.printStackTrace();
+
+            /*
+             * sending a response itself can generate an exception, which is why we have another try-catch block
+             * inside of the timeout catch. Note that this is necessary: we can only be certain the connection timed out
+             * if we are inside this block, and can thus only construct and send the response inside this block. 
+             */
             try {
-                sendResponse(constructResponseInfo(Utils.TIMEOUT_CODE, Utils.TIMEOUT_PHRASE, false, null), null);
-            } catch (IOException e1) {
+                sendResponse(constructResponseInfo(Utils.TIMEOUT_CODE, Utils.TIMEOUT_PHRASE, 
+                                                   false, null), null);
+            } 
+            catch (IOException e1) {
                 e1.printStackTrace();
             }
         }
         catch (SocketException e) {
-            wasSuccessful = false;
             e.printStackTrace();
         } 
         catch (IOException e) {
-            wasSuccessful = false;
             e.printStackTrace();
         }
         /*
@@ -80,18 +105,20 @@ public class WorkerThread extends Thread {
          */
         finally {
             Utils.closeGracefully(
-                // fileOutputStream,
+                fileInputStream,
                 outputStream,
                 inputStream,
                 socket
             );
-            if (!wasSuccessful) {
-                System.exit(Utils.UNSUCCESSFUL_TERMINATION);
-            } 
         }
     }
 
-
+    /**
+     * Parse the incoming HTTP request.
+     *
+     * @throws IOException 
+     * @return boolean denoting whether request is correctly formatted
+     */
     private boolean parseRequest() throws IOException {
         /*
             initially, we have not read any bytes from the request. We need
@@ -102,7 +129,7 @@ public class WorkerThread extends Thread {
         int currByte = Utils.NO_BYTE;
         
         /*  the request line is formatted as: method objectPath Protocol
-            when we split on the request line, we use an index of 0, 1, and 2 to access the code and phrase
+            when we split on the request line, we use an index of 0, 1, and 2 to access the components
             respectively
          */
         int METHOD = 0;
@@ -143,7 +170,7 @@ public class WorkerThread extends Thread {
                     if (requestLine.length != 3 ||
                         !requestLine[METHOD].trim().equals(Utils.HTTP_METHOD) ||
                         !requestLine[PROTOCOL].trim().equals(Utils.HTTP_VERSION) ||
-                        !requestLine[OBJECT_PATH].trim().startsWith("/")
+                        !requestLine[OBJECT_PATH].trim().startsWith(Utils.DEFAULT_PATH)
                     ) {
                         /* 
                             if the request is improperly formatted, we set the boolean to false but
@@ -190,7 +217,13 @@ public class WorkerThread extends Thread {
         return requestFormattedCorrectly;
     }
 
+    /**
+     * Obtain the requested object from the root directory. 
+     *
+     * @return A file object (or nothing if the file doesn't exist) back to the client. 
+     */
     private File obtainObject() {
+        // we need to check that the user didn't just give us a directory
         File file = new File(root, objectPath);
         if (file.exists() && file.isFile()) {
             return file;
@@ -198,38 +231,47 @@ public class WorkerThread extends Thread {
         return null;
     }
 
-    private void sendResponse(String responseInfo, File responseObject) {
-        try {
-            byte[] responseBytes = responseInfo.getBytes(Utils.STRING_TO_BYTE_CHARSET);
-            outputStream.write(responseBytes);
+    /**
+     * Send a response (both the header info and the requested object).
+     * 
+     * @param responseInfo // status line and headers
+     * @param responseObject // requested object
+     * @throws IOException 
+     */
+    private void sendResponse(String responseInfo, File responseObject) throws IOException {
+        // the status line and header are a string so we know we can easily convert them to bytes
+        byte[] responseBytes = responseInfo.getBytes(Utils.STRING_TO_BYTE_CHARSET);
+        outputStream.write(responseBytes);
 
-            /*
-            * The numBytes tells us how many bytes to actually write to the stream; this may
-            * be different from the buffer size (ie. if the number of bytes remaining is <
-            * buffer.length). This is why we cannot specify buffer.length as the number of bytes being written,
-            * as we would get an IndexOutOfBounds exception when we reach the end.
-            */
-            int numBytes = 0;
-            byte[] buffer = new byte[Utils.BUFFER_SIZE];
-            FileInputStream fileInputStream = new FileInputStream(responseObject);
+        /*
+        * The numBytes tells us how many bytes to actually write to the stream; this may
+        * be different from the buffer size (ie. if the number of bytes remaining is <
+        * buffer.length). This is why we cannot specify buffer.length as the number of bytes being written,
+        * as we would get an IndexOutOfBounds exception when we reach the end.
+        * 
+        * The file could be of any format, so we need to actually read it using an input stream.
+        */
+        int numBytes = 0;
+        byte[] buffer = new byte[Utils.BUFFER_SIZE];
+        fileInputStream = new FileInputStream(responseObject);
 
-            while ((numBytes = fileInputStream.read(buffer)) != Utils.EOF) {
-                outputStream.write(buffer, Utils.OFFSET, numBytes);
-            }
-            // flush to ensure response is actually written to the client.
-            outputStream.flush();
-        } 
-        catch (IOException e) {
-            e.printStackTrace();
+        while ((numBytes = fileInputStream.read(buffer)) != Utils.EOF) {
+            outputStream.write(buffer, Utils.OFFSET, numBytes);
         }
-            
+
+        // flush to ensure response is actually written to the client.
+        outputStream.flush();
         System.out.println(responseInfo);
     }
 
     /**
-     * Create a properly formatted HTTP response message.
+     * Create properly formatted HTTP response info (excluding file content).
      *
-     * @return A response message that is ready to send to the client.
+     * @param httpStatusCode status code of get request
+     * @param httpStatusPhrase status phrase of get request
+     * @param isOK whether request is 200 (which influences the headers we add)
+     * @param file the requested file object (may be empty if request failed)
+     * @return Response info (excluding file content) ready to be sent to client.
      * @throws IOException 
      */
     private String constructResponseInfo(int httpStatusCode, String httpStatusPhrase, boolean isOK, File file) throws IOException {
@@ -244,6 +286,14 @@ public class WorkerThread extends Thread {
         return response;
     }
 
+    /**
+     * Create properly formatted HTTP header lines.
+     *
+     * @param isOK whether request is 200 (which influences the headers we add)
+     * @param file the requested file object (may be empty if request failed)
+     * @return Header lines ready to be included in the HTTP response.
+     * @throws IOException 
+     */
     private String constructHeaders(boolean isOK, File file) throws IOException {
         String date = "Date: " + ServerUtils.getCurrentDate() + Utils.EOL;
         String server = "Server: " + serverName + Utils.EOL;

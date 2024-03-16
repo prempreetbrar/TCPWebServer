@@ -1,5 +1,3 @@
-
-
 /**
  * WebServer Class
  * 
