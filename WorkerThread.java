@@ -1,4 +1,5 @@
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -22,10 +23,14 @@ public class WorkerThread extends Thread {
 
     // response constants
     private static final String STRING_TO_BYTE_CHARSET = "US-ASCII";
+
     private static final int TIMEOUT_CODE = 408;
     private static final String TIMEOUT_PHRASE = "Request Timeout";
     private static final int BAD_CODE = 400;
     private static final String BAD_PHRASE = "Bad Request";
+    private static final int NOT_FOUND_CODE = 404;
+    private static final String NOT_FOUND_PHRASE = "Not Found";
+
     private static final String HTTP_VERSION = "HTTP/1.1";
     private static final String HTTP_METHOD = "GET";
     private static final String EOL = "\r\n";
@@ -73,32 +78,14 @@ public class WorkerThread extends Thread {
                 sendResponse(constructResponse(BAD_CODE, BAD_PHRASE, false));
             }
 
+            boolean isObjectFound = isObjectFound();
+            if (!isObjectFound) {
+                sendResponse(constructResponse(NOT_FOUND_CODE, NOT_FOUND_PHRASE, false));
+            }
 
-                // int numBytes = 0;
-                // byte[] buffer = new byte[StreamClient.this.BUFFER_SIZE];
-
-                // try {
-                //     while () {
-                //         System.out.println("R " + numBytes);
-                //         fileOutputStream.write(buffer, OFFSET, numBytes);
-                //     }
-                //     /*
-                //      * we do not need the bytes to be written to the file as we are reading it; this is because the concurrency
-                //      * and interaction between client and server is related to them sending the file to each other. The server
-                //      * already flushes (as specified by Dr. Ghaderi), and we have flushed on the client side when writing. There is no
-                //      * urgency when outputting to file.
-                //      * 
-                //      * We can comfortably flush at the end.
-                //      */
-                //     fileOutputStream.flush();
-                // } 
-                // catch (IOException e) {
-                //     e.printStackTrace();
-                // }
-
+            
         } 
         catch (SocketTimeoutException e) {
-            wasSuccessful = false;
             e.printStackTrace();
             sendResponse(constructResponse(TIMEOUT_CODE, TIMEOUT_PHRASE, false));
         }
@@ -122,12 +109,9 @@ public class WorkerThread extends Thread {
                 inputStream,
                 socket
             );
-            if (wasSuccessful) {
-                // System.exit(SUCCESSFUL_TERMINATION);
+            if (!wasSuccessful) {
+                System.exit(UNSUCCESSFUL_TERMINATION);
             } 
-            else {
-                // System.exit(UNSUCCESSFUL_TERMINATION);
-            }
         }
     }
 
@@ -250,6 +234,11 @@ public class WorkerThread extends Thread {
 
         System.out.println(request);
         return requestFormattedCorrectly;
+    }
+
+    private boolean isObjectFound() {
+        File file = new File(root, objectPath);
+        return file.exists() && file.isFile();
     }
 
     private void sendResponse(String response) {
