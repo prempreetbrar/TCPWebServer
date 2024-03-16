@@ -1,3 +1,16 @@
+/**
+ * Utils Class
+ * 
+ * CPSC 441 - L01 - T01
+ * Assignment 3
+ * 
+ * TA: Amir Shani
+ * Student: Prempreet Brar
+ * UCID: 30112576
+ * 
+ * A class containing constants and methods used by both the server and workers. 
+ */
+
 import java.io.Closeable;
 import java.io.IOException;
 
