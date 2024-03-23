@@ -48,6 +48,20 @@ public class WorkerThread extends Thread {
         this.outputStream = null;
     }
 
+    /*
+     * If shutdownNow was invoked by the server, this thread could have been interrupted.
+     * We need to periodically check for such interruptions so that we can terminate all execution
+     * immediately if needed.
+     * 
+     * The exception causes the run method to enter the "finally" block and clean up the thread.
+     * This is a clever use of Java's exception handling functionality. 
+     */
+    private void checkInterruption() throws InterruptedException {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException();
+        }
+    }
+
     /**
      * method that parses the client request and responds appropriately.
      */
@@ -64,6 +78,7 @@ public class WorkerThread extends Thread {
             if (!requestFormattedCorrectly) {
                 sendResponse(constructResponseInfo(Utils.BAD_CODE, Utils.BAD_PHRASE, 
                                               false, null), null);
+                return;
             }
 
             // object exists?
@@ -71,6 +86,7 @@ public class WorkerThread extends Thread {
             if (object == null) {
                 sendResponse(constructResponseInfo(Utils.NOT_FOUND_CODE, Utils.NOT_FOUND_PHRASE, 
                                               false, null), null);
+                return;
             }
             
             // send the object back
@@ -78,6 +94,8 @@ public class WorkerThread extends Thread {
         } 
         catch (SocketTimeoutException e) {
             e.printStackTrace();
+            // for formatting the console to look cleaner
+            System.out.println();
 
             /*
              * sending a response itself can generate an exception, which is why we have another try-catch block
@@ -90,12 +108,18 @@ public class WorkerThread extends Thread {
             } 
             catch (IOException e1) {
                 e1.printStackTrace();
+            } 
+            catch (InterruptedException e1) {
+                e1.printStackTrace();
             }
         }
         catch (SocketException e) {
             e.printStackTrace();
         } 
         catch (IOException e) {
+            e.printStackTrace();
+        }
+        catch (InterruptedException e) {
             e.printStackTrace();
         }
         /*
@@ -117,9 +141,10 @@ public class WorkerThread extends Thread {
      * Parse the incoming HTTP request.
      *
      * @throws IOException 
+     * @throws InterruptedException 
      * @return boolean denoting whether request is correctly formatted
      */
-    private boolean parseRequest() throws IOException {
+    private boolean parseRequest() throws IOException, InterruptedException {
         /*
             initially, we have not read any bytes from the request. We need
             both prevByte and currByte because we need to keep track of two
@@ -149,6 +174,7 @@ public class WorkerThread extends Thread {
         boolean requestFormattedCorrectly = true;
 
         while ((currByte = inputStream.read()) != Utils.EOF) {
+            checkInterruption();
             currLine += (char) currByte;
 
             /* 
@@ -213,6 +239,7 @@ public class WorkerThread extends Thread {
             prevByte = currByte;
         }
 
+        checkInterruption();
         System.out.println(request);
         return requestFormattedCorrectly;
     }
@@ -221,8 +248,11 @@ public class WorkerThread extends Thread {
      * Obtain the requested object from the root directory. 
      *
      * @return A file object (or nothing if the file doesn't exist) back to the client. 
+     * @throws InterruptedException 
      */
-    private File obtainObject() {
+    private File obtainObject() throws InterruptedException {
+        checkInterruption();
+
         // we need to check that the user didn't just give us a directory
         File file = new File(root, objectPath);
         if (file.exists() && file.isFile()) {
@@ -237,11 +267,13 @@ public class WorkerThread extends Thread {
      * @param responseInfo // status line and headers
      * @param responseObject // requested object
      * @throws IOException 
+     * @throws InterruptedException 
      */
-    private void sendResponse(String responseInfo, File responseObject) throws IOException {
+    private void sendResponse(String responseInfo, File responseObject) throws IOException, InterruptedException {
         // the status line and header are a string so we know we can easily convert them to bytes
         byte[] responseBytes = responseInfo.getBytes(Utils.STRING_TO_BYTE_CHARSET);
         outputStream.write(responseBytes);
+        checkInterruption();
 
         /*
         * The numBytes tells us how many bytes to actually write to the stream; this may
@@ -251,15 +283,19 @@ public class WorkerThread extends Thread {
         * 
         * The file could be of any format, so we need to actually read it using an input stream.
         */
-        int numBytes = 0;
-        byte[] buffer = new byte[Utils.BUFFER_SIZE];
-        fileInputStream = new FileInputStream(responseObject);
-
-        while ((numBytes = fileInputStream.read(buffer)) != Utils.EOF) {
-            outputStream.write(buffer, Utils.OFFSET, numBytes);
+        if (responseObject != null) {
+            int numBytes = 0;
+            byte[] buffer = new byte[Utils.BUFFER_SIZE];
+            fileInputStream = new FileInputStream(responseObject);
+    
+            while ((numBytes = fileInputStream.read(buffer)) != Utils.EOF) {
+                checkInterruption();
+                outputStream.write(buffer, Utils.OFFSET, numBytes);
+            }    
         }
 
         // flush to ensure response is actually written to the client.
+        checkInterruption();
         outputStream.flush();
         System.out.println(responseInfo);
     }
@@ -273,8 +309,9 @@ public class WorkerThread extends Thread {
      * @param file the requested file object (may be empty if request failed)
      * @return Response info (excluding file content) ready to be sent to client.
      * @throws IOException 
+     * @throws InterruptedException 
      */
-    private String constructResponseInfo(int httpStatusCode, String httpStatusPhrase, boolean isOK, File file) throws IOException {
+    private String constructResponseInfo(int httpStatusCode, String httpStatusPhrase, boolean isOK, File file) throws IOException, InterruptedException {
         String statusLine = Utils.HTTP_VERSION + " " + httpStatusCode + " " + httpStatusPhrase + Utils.EOL;
         String headers = constructHeaders(isOK, file);
 
@@ -283,6 +320,7 @@ public class WorkerThread extends Thread {
          * in a similar manner, but these could just as easily be constructed as a single string.
          */
         String response = statusLine + headers + Utils.END_OF_HEADERS;
+        checkInterruption();
         return response;
     }
 
@@ -293,8 +331,9 @@ public class WorkerThread extends Thread {
      * @param file the requested file object (may be empty if request failed)
      * @return Header lines ready to be included in the HTTP response.
      * @throws IOException 
+     * @throws InterruptedException 
      */
-    private String constructHeaders(boolean isOK, File file) throws IOException {
+    private String constructHeaders(boolean isOK, File file) throws IOException, InterruptedException {
         String date = "Date: " + ServerUtils.getCurrentDate() + Utils.EOL;
         String server = "Server: " + serverName + Utils.EOL;
         String connection = "Connection: close" + Utils.EOL;
@@ -303,8 +342,11 @@ public class WorkerThread extends Thread {
             String lastModified = "Last-Modified: " + ServerUtils.getLastModified(file) + Utils.EOL;
             String contentLength = "Content-Length: " + ServerUtils.getContentLength(file) + Utils.EOL;
             String contentType = "Content-Type: " + ServerUtils.getContentType(file) + Utils.EOL;
+            
+            checkInterruption();
             return date + server + lastModified + contentLength + contentType + connection;
         } 
+        checkInterruption();
         return date + server + connection; 
     }
 }

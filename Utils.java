@@ -68,27 +68,4 @@ public class Utils {
             e.printStackTrace();
         }
     }
-
-    /**
-     * Join all opened threads (wait for them to finish executing).
-     *
-     * @param threads all threads which need to finish execution.
-     */
-    public static void joinGracefully(Thread... threads) {
-        /*
-         * We need to surround this with a try-catch block because the joining itself can raise
-         * an InterruptedException. In this case, if joining fails, there is nothing else we can do. We must also
-         * ensure that the thread is not null. This is because other parts of the program instantiate a Thread
-         * variable to null before reassignment.
-         */
-        try {
-            for (Thread thread : threads) {
-                if (thread != null) {
-                    thread.join();
-                }
-            }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
 }
