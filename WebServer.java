@@ -1,15 +1,7 @@
 /**
  * WebServer Class
- * 
- * CPSC 441 - L01 - T01
- * Assignment 3
- * 
- * TA: Amir Shani
- * Student: Prempreet Brar
- * UCID: 30112576
- * 
- * Implements a multi-threaded web server supporting non-persistent connections.
  *
+ * Implements a multi-threaded web server supporting non-persistent connections.
  */
 
 import java.util.*;
