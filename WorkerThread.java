@@ -1,13 +1,6 @@
 /**
  * WorkerThread Class
  * 
- * CPSC 441 - L01 - T01
- * Assignment 3
- * 
- * TA: Amir Shani
- * Student: Prempreet Brar
- * UCID: 30112576
- * 
  * A single thread that services a GET request.
  */
 
