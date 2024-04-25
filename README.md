@@ -4,7 +4,7 @@ A program that serves web objects from an existing directory to HTTP clients ove
 a GIF of me interacting with it below!
 
 <br></br>
-
+![request](https://github.com/prempreetbrar/TCPWebServer/assets/89614923/44472d33-d81a-4b1a-a282-0cf861a3d654)
 &nbsp;
 
 ## Features
@@ -68,13 +68,8 @@ a GIF of me interacting with it below!
 ![server](https://github.com/prempreetbrar/TCPWebServer/assets/89614923/51398c4c-fa7b-4867-b6b9-0b3d40d2bf55)
 &nbsp;
 
-5. Send a request to the server using `telnet`, a web broswer, or any other application layer protocol:
-
-   5.1 Using `telnet`:
-
-   
-
-7. Interact with the file as you please!
+5. Send a request to the server using `telnet`, a web browser, or any other application layer protocol:
 <br></br>
-![enjoy](https://github.com/prempreetbrar/TCPFileDownloader/assets/89614923/7641c504-2615-41f5-97c1-bf97e5fbaf86)
+![request](https://github.com/prempreetbrar/TCPWebServer/assets/89614923/44472d33-d81a-4b1a-a282-0cf861a3d654)
+
 
