@@ -3,7 +3,6 @@
 A program that serves web objects from an existing directory to HTTP clients over the Internet using TCP. Watch
 a GIF of me interacting with it below!
 
-<br></br>
 ![request](https://github.com/prempreetbrar/TCPWebServer/assets/89614923/44472d33-d81a-4b1a-a282-0cf861a3d654)
 &nbsp;
 
