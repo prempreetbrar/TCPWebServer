@@ -11,7 +11,13 @@ a GIF of me interacting with it below!
 - Operates in non-persistent HTTP mode; once the object is served, the server closes the underlying TCP connection.
 - Handles multiple connections simultaneously using multi-threading; spawns a new thread and creates a new `Socket` for _each_
   incoming TCP connection request (unlike UDP, where a single socket is used for all incoming requests and all messages are demultiplexed
-  to the _same_ socket).
+  to the _same_ socket). See the following image:
+
+<br></br>
+![image](https://github.com/prempreetbrar/TCPWebServer/assets/89614923/0f6ddc5a-229b-407b-a2e8-d56b0fcedb4b)
+<br></br>
+In the above image, you see a service process `P1` open three different `Socket`s for three different connecting clients; every client's segments are demultiplexed to a different `Socket` at `P1`.
+  
 - To prevent non-responsive clients from hogging server resources, if the server does not receive an HTTP message from the
   client after the initial 3-way handshake, the server closes the connection and sends an error message with status code `408`. Note that
   this only occurs if the client is connecting using `telnet` or certain other application layer protocols. With something like a browser, the
