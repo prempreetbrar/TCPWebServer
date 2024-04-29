@@ -14,7 +14,7 @@ a GIF of me interacting with it below!
   to the _same_ socket). See the following image:
 
 <br></br>
-![image](https://github.com/prempreetbrar/TCPWebServer/assets/89614923/0f6ddc5a-229b-407b-a2e8-d56b0fcedb4b)
+![image](https://github.com/prempreetbrar/TCPWebServer/assets/89614923/69ed61dc-d2e5-4625-a177-134cf0b7cd6b)
 <br></br>
 In the above image, you see a service process `P1` open three different `Socket`s for three different connecting clients; every client's segments are demultiplexed to a different `Socket` at `P1`.
   
